@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>LDR Doodle</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #fafafa; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+        #canvas { display: block; background: white; width: 100vw; height: 80vh; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .controls { display: flex; justify-content: space-around; align-items: center; height: 20vh; background: #f0f0f2; }
+        button { padding: 15px 30px; font-size: 16px; font-weight: bold; border: none; border-radius: 12px; background: #007aff; color: white; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        button.clear { background: #ff3b30; }
+    </style>
+</head>
+<body>
+
+    <canvas id="canvas"></canvas>
+    <div class="controls">
+        <button class="clear" onclick="clearCanvas()">Clear</button>
+        <button onclick="fetchPartner()">Fetch Partner</button>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const BUCKET_ID = "JUkGge7gpgiTD1WLHUXEXR"; 
+        const URL = `https://kvdb.io{BUCKET_ID}/doodle_data`;
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+        let points = [];
+        let partnerPoints = [];
+
+        // Resize canvas for device pixels
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight * 0.8;
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Touch Tracking
+        canvas.addEventListener('touchstart', (e) => {
+            drawing = true;
+            const touch = e.touches[0];
+            addPoint('start', touch.clientX, touch.clientY);
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (!drawing) return;
+            const touch = e.touches[0];
+            addPoint('draw', touch.clientX, touch.clientY);
+            redraw();
+        });
+
+        canvas.addEventListener('touchend', () => {
+            drawing = false;
+            sendDoodle();
+        });
+
+        function addPoint(action, x, y) {
+            points.push({ action, x: Math.round(x), y: Math.round(y) });
+        }
+
+        function redraw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw Your Lines (Blue)
+            ctx.strokeStyle = '#007aff';
+            drawPath(points);
+
+            // Draw Partner Lines (Red)
+            ctx.strokeStyle = '#ff9500';
+            drawPath(partnerPoints);
+        }
+
+        function drawPath(pathPoints) {
+            if (pathPoints.length === 0) return;
+            ctx.beginPath();
+            pathPoints.forEach(pt => {
+                if (pt.action === 'start') {
+                    ctx.moveTo(pt.x, pt.y);
+                } else {
+                    ctx.lineTo(pt.x, pt.y);
+                }
+            });
+            ctx.stroke();
+        }
+
+        async function sendDoodle() {
+            try {
+                await fetch(URL, { method: 'PUT', body: JSON.stringify(points) });
+            } catch (err) { console.error("Error saving data"); }
+        }
+
+        async function fetchPartner() {
+            try {
+                const res = await fetch(URL);
+                if (res.ok) {
+                    const text = await res.text();
+                    partnerPoints = text ? JSON.parse(text) : [];
+                    redraw();
+                }
+            } catch (err) { alert("Error fetching partner doodle"); }
+        }
+
+        async function clearCanvas() {
+            points = [];
+            partnerPoints = [];
+            redraw();
+            try {
+                await fetch(URL, { method: 'PUT', body: JSON.stringify([]) });
+            } catch (err) {}
+        }
+    </script>
+</body>
+</html>
